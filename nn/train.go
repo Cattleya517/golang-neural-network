@@ -81,10 +81,11 @@ func hadamardProduct(matA, matB *mat.Dense) (*mat.Dense, error){
 
 func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, layerOutputs []*mat.Dense){
 
-	// 計算Output層的 Error
+	// outputError
 	var outputError mat.Dense
 	outputError.Sub(pred, traget)  // This calculation only works for Cross-Entropy loss function
 
+	//outputGrad = outputError * last hidden layer output ^ T
 	var outputWeightGrad mat.Dense
 	outputWeightGrad.Mul(&outputError, layerOutputs[len(layerOutputs)-1].T())
 
@@ -97,18 +98,53 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 	nn.OutputBias.Sub(nn.OutputBias, &scaledBiasGrad)
 
 	// 從最後一層hidden layer 逐步修正到第一層
+	
+	var prevLayerError *mat.Dense
+	layercount := len(nn.Hidden)
+
 	for i := layercount-1 ; i > 0 ; i-=1 {
 		// 如果是最後一層  需要先從ouput layer 取得gradient訊息
+
 		if i == layercount-1 {
-			var layerError mat.Dense 
+			var layerError *mat.Dense 
 			layerError.Mul(nn.OutputWeight.T(), &outputError)
 			
 			reluDeriv := reluDerivative(layerOutputs[i])
 			layerError, _ = hadamardProduct(&layerError, reluDeriv)
+			prevLayerError = layerError
+
+			var layerGrad mat.Dense
+			layerGrad.Mul(layerError, layerOutputs[i-1].T())
+
+			var scaledWeightGrad mat.Dense
+			scaledWeightGrad.Scale(nn.LearningRate, &layerGrad)
+			nn.Hidden[i].weight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
+
+			var scaledBiasGrad mat.Dense
+			scaledBiasGrad.Scale(nn.LearningRate, &layerError)
+			nn.Hidden[i].bias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
 
 		}	else {
-
+			// layerError = 後一層weight.T() * 後一層的error
+			// layerGrad (on L) = layerError (on L) * layerOutput.T() (on L-1)
 		 
+			var layerError *mat.Dense
+			layerError.Mul(nn.Hidden[i+1].weight.T(), prevLayerError)
+			reluDeriv := reluDerivative(layerOutputs[i])
+			layerError, _ = hadamardProduct(&layerError, reluDeriv)
+			prevLayerError = layerError
+
+			var layerGrad mat.Dense
+			layerGrad.Mul(layerError, layerOutputs[i-1].T())
+
+			var scaledWeightGrad mat.Dense
+			scaledWeightGrad.Scale(nn.LearningRate, &layerGrad)
+			nn.Hidden[i].weight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
+
+			var scaledBiasGrad mat.Dense
+			scaledBiasGrad.Scale(nn.LearningRate, &layerError)
+			nn.Hidden[i].bias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
+
 		} 
 	}
 
@@ -118,13 +154,18 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 func (nn *NeuralNetwork) train(input *mat.Dense, target *mat.Dense) error {
 
 	//foward
-	pred, layerOutputs, _ := nn.forwardWithCache(input)
+	logits, layerOutputs, _ := nn.forwardWithCache(input)
+
+	// softmax to decode preditction from pred matrix
+	pred := softmax(logits)
 
 	//record loss
-	loss, _ := crossEntropyLoss(pred, truth)
+	loss, _ := crossEntropyLoss(pred, target)
 
 	//backpropagation
 	nn.backPropagation(pred, target, layerOutputs)
 
-	return nil
+	return loss, nil
 }
+
+

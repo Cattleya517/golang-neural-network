@@ -108,7 +108,29 @@ func (nn NeuralNetwork) forward(input *mat.Dense) (*mat.Dense, error) {
 }
 
 
-
-
-
+func softmax(input *mat.Dense) *mat.Dense {
+	max := input.At(0, 0)
+	r, c := input.Dims()
+	for i := 0; i < r; i++{
+		for j:=0; j < c; j++{
+			max = math.Max(max, input.At(i, j))
+		}
+	}
+	var result mat.Dense
+	sum := 0.0
+	for i := 0; i < r; i++{
+		for j:=0; j < c; j++{
+			new := math.Exp(input.At(i, j) - max)
+			result.Set(i, j, new)
+			sum += new
+		}
+	}
+	for i := 0; i < r; i++{
+		for j:=0; j < c; j++{
+			new := result.At(i, j) / sum
+			result.Set(i, j, new)
+		}
+	}
+	return &result
+}
 
