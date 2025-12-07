@@ -1,8 +1,12 @@
 package nn
 
 import (
+	"encoding/csv"
 	"fmt"
+	"io"
 	"math"
+	"os"
+	"strconv"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -168,4 +172,58 @@ func (nn *NeuralNetwork) train(input *mat.Dense, target *mat.Dense) error {
 	return loss, nil
 }
 
+type TrainingData struct{
+	Input *mat.Dense
+	Target *mat.Dense
+}
 
+func LoadingDataFromCSV(filename string) ([]TrainingData, error){
+	file, err := os.Open(filename)
+	if err != nil{
+		return nil, fmt.Errorf("Can't open file %s", filename)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	var data []TrainingData
+	for {
+		record, err := reader.Read()
+		if err == io.EOF{
+			break
+		}
+		if err != nil{
+			return nil, fmt.Errorf("Error reading csv %v", err)
+		}
+		var td TrainingData
+		target := mat.NewDense(10, 1, nil)
+		label, _ := strconv.Atoi(record[0])
+		target.Set(label, 0, 1.0)
+		td.Target = target
+
+		input := mat.NewDense(784, 1, nil)
+		for i:=0; i<784; i++{
+			pixel, _ := strconv.Atoi(record[1:][i])
+			input.Set(i, 0, float64(pixel)/255.0) 
+		}
+		td.Input = input
+		data = append(data, td)
+	}
+	return data, nil
+}
+
+func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData) error {
+	// training loop
+	for i:=0; i<epoch; i++ {
+
+		//遍例所有training sample
+		
+		lossSum := 0.0
+		// for every sample in training set
+		singleLoss, nil := nn.train()
+
+		lossSum += singleLoss
+		fmt.Printf("Epoch 【%d/%d】| Training Loss on this epoch %.4f\n", i, epoch, loss)
+	}
+
+
+}
