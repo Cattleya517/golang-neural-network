@@ -155,7 +155,7 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 }   
 
 
-func (nn *NeuralNetwork) train(input *mat.Dense, target *mat.Dense) error {
+func (nn *NeuralNetwork) train(input *mat.Dense, target *mat.Dense) (float64, error) {
 
 	//foward
 	logits, layerOutputs, _ := nn.forwardWithCache(input)
@@ -213,17 +213,20 @@ func LoadingDataFromCSV(filename string) ([]TrainingData, error){
 
 func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData) error {
 	// training loop
-	for i:=0; i<epoch; i++ {
 
+	for i := 0; i < epoch; i++ {
 		//遍例所有training sample
-		
 		lossSum := 0.0
-		// for every sample in training set
-		singleLoss, nil := nn.train()
-
-		lossSum += singleLoss
-		fmt.Printf("Epoch 【%d/%d】| Training Loss on this epoch %.4f\n", i, epoch, loss)
+		for _, sample := range trainingset {
+			singleLoss, err := nn.train(sample.Input, sample.Target)
+			if err != nil {
+				return fmt.Errorf("Error During Training")
+			}
+			lossSum += singleLoss
+		}
+		avgLoss := lossSum / float64(len(trainingset))
+		fmt.Printf("Epoch 【%d/%d】| Average training Loss on this epoch %.4f\n", i, epoch, avgLoss)
 	}
 
-
+	return nil
 }
