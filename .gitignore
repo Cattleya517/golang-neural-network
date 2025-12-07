@@ -2,3 +2,6 @@ mnist_data/train.csv
 
 mnist_data/test.csv
 mnist_data/
+
+.DS_Store
+
