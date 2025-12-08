@@ -87,8 +87,8 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 	// IMPORTANT!!!: Compute ALL gradients first using ORIGINAL weights, then apply updates
 
 	layercount := len(nn.Hidden)
-
 	// Storage for gradients (will apply all at once at the end)
+	// loss.backward() in pytorch
 	hiddenWeightGrads := make([]*mat.Dense, layercount)
 	hiddenBiasGrads := make([]*mat.Dense, layercount)
 
@@ -130,6 +130,7 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 
 	// Now apply all updates at once
 	// Update output layer
+	// optimizer.step() in pytorch
 	var scaledOutputWeightGrad mat.Dense
 	scaledOutputWeightGrad.Scale(nn.LearningRate, &outputWeightGrad)
 	r, c := nn.OutputWeight.Dims()
