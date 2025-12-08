@@ -22,12 +22,27 @@ type HiddenLayer struct{
 	bias *mat.Dense
 }
 
-func randomArray(size int) []float64 {
+// He initialization for ReLU activation
+// stddev = sqrt(2 / n_inputs)
+func heInitArray(size int, nInputs int) []float64 {
 	array := make([]float64, size)
+	stddev := math.Sqrt(2.0 / float64(nInputs))
 	for i := 0; i < size; i++ {
-		array[i] = rand.Float64() - 0.5
+		// Box-Muller transform for normal distribution
+		// Avoid u1=0 which would cause log(0)=-Inf
+		u1 := rand.Float64()
+		for u1 == 0 {
+			u1 = rand.Float64()
+		}
+		u2 := rand.Float64()
+		z := math.Sqrt(-2*math.Log(u1)) * math.Cos(2*math.Pi*u2)
+		array[i] = z * stddev
 	}
 	return array
+}
+
+func zeroBiasArray(size int) []float64 {
+	return make([]float64, size) // initialized to zeros
 }
 
 func NewNeuralNetwork(inputs, outputClass int, hiddenNodes []int, learningRate float64) (*NeuralNetwork, error){
@@ -44,21 +59,22 @@ func NewNeuralNetwork(inputs, outputClass int, hiddenNodes []int, learningRate f
 		if idx == 0 {
 			hidden = HiddenLayer{
 			nodenum: node,
-			weight: mat.NewDense(node, inputs, randomArray(node*inputs)),
-			bias: mat.NewDense(node, 1, randomArray(node)),
+			weight: mat.NewDense(node, inputs, heInitArray(node*inputs, inputs)),
+			bias: mat.NewDense(node, 1, zeroBiasArray(node)),
 			}
 		} else {
 			hidden = HiddenLayer{
 				nodenum: node,
-				weight:  mat.NewDense(node, hiddenNodes[idx-1], randomArray(node*hiddenNodes[idx-1])),
-				bias:    mat.NewDense(node, 1, randomArray(node)),
+				weight:  mat.NewDense(node, hiddenNodes[idx-1], heInitArray(node*hiddenNodes[idx-1], hiddenNodes[idx-1])),
+				bias:    mat.NewDense(node, 1, zeroBiasArray(node)),
 			}
 		}
 		nn.Hidden = append(nn.Hidden, hidden)
 	}
 
-	nn.OutputWeight = mat.NewDense(outputClass, hiddenNodes[len(hiddenNodes)-1], randomArray(outputClass*hiddenNodes[len(hiddenNodes)-1]))
-	nn.OutputBias = mat.NewDense(outputClass, 1, randomArray(outputClass))
+	lastHiddenSize := hiddenNodes[len(hiddenNodes)-1]
+	nn.OutputWeight = mat.NewDense(outputClass, lastHiddenSize, heInitArray(outputClass*lastHiddenSize, lastHiddenSize))
+	nn.OutputBias = mat.NewDense(outputClass, 1, zeroBiasArray(outputClass))
 	return nn, nil
 }
 
@@ -116,7 +132,7 @@ func softmax(input *mat.Dense) *mat.Dense {
 			max = math.Max(max, input.At(i, j))
 		}
 	}
-	var result mat.Dense
+	result := mat.NewDense(r, c, nil)
 	sum := 0.0
 	for i := 0; i < r; i++{
 		for j:=0; j < c; j++{
@@ -131,6 +147,6 @@ func softmax(input *mat.Dense) *mat.Dense {
 			result.Set(i, j, new)
 		}
 	}
-	return &result
+	return result
 }
 

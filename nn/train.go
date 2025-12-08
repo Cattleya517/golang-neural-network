@@ -38,7 +38,7 @@ func (nn *NeuralNetwork) forwardWithCache(input *mat.Dense) (*mat.Dense, []*mat.
 		weighted.Add(&weighted, layer.bias)
 
 		activated := relu(&weighted)
-		layerOutputs = append(layerOutputs, activated)  // 保存這層的輸出
+		layerOutputs = append(layerOutputs, activated)
 		current = activated
 	}
 	// 處理輸出層
@@ -84,79 +84,88 @@ func hadamardProduct(matA, matB *mat.Dense) (*mat.Dense, error){
 }
 
 func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, layerOutputs []*mat.Dense){
+	// IMPORTANT!!!: Compute ALL gradients first using ORIGINAL weights, then apply updates
 
-	// outputError
+	layercount := len(nn.Hidden)
+
+	// Storage for gradients (will apply all at once at the end)
+	hiddenWeightGrads := make([]*mat.Dense, layercount)
+	hiddenBiasGrads := make([]*mat.Dense, layercount)
+
+	// outputError = pred - target (for softmax + cross-entropy)
 	var outputError mat.Dense
-	outputError.Sub(pred, traget)  // This calculation only works for Cross-Entropy loss function
+	outputError.Sub(pred, traget)
 
-	//outputGrad = outputError * last hidden layer output ^ T
+	// Compute output layer gradients
 	var outputWeightGrad mat.Dense
 	outputWeightGrad.Mul(&outputError, layerOutputs[len(layerOutputs)-1].T())
 
-	var scaledWeightGrad mat.Dense
-	scaledWeightGrad.Scale(nn.LearningRate, &outputWeightGrad)
-	nn.OutputWeight.Sub(nn.OutputWeight, &scaledWeightGrad)
-	
-	var scaledBiasGrad mat.Dense
-	scaledBiasGrad.Scale(nn.LearningRate, &outputError)
-	nn.OutputBias.Sub(nn.OutputBias, &scaledBiasGrad)
+	// Save a copy of original output weights for gradient computation
+	origOutputWeight := mat.DenseCopyOf(nn.OutputWeight)
 
-	// 從最後一層hidden layer 逐步修正到第一層
-	
+	// Compute hidden layer gradients (backwards, using original weights)
 	var prevLayerError *mat.Dense
-	layercount := len(nn.Hidden)
 
-	for i := layercount-1 ; i > 0 ; i-=1 {
-		// 如果是最後一層  需要先從ouput layer 取得gradient訊息
+	for i := layercount-1; i >= 0; i-- {
+		var layerError mat.Dense
 
 		if i == layercount-1 {
-			var layerError *mat.Dense 
-			layerError.Mul(nn.OutputWeight.T(), &outputError)
-			
-			reluDeriv := reluDerivative(layerOutputs[i])
-			layerError, _ = hadamardProduct(layerError, reluDeriv)
-			prevLayerError = layerError
-
-			var layerGrad mat.Dense
-			layerGrad.Mul(layerError, layerOutputs[i-1].T())
-
-			var scaledWeightGrad mat.Dense
-			scaledWeightGrad.Scale(nn.LearningRate, &layerGrad)
-			nn.Hidden[i].weight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
-
-			var scaledBiasGrad mat.Dense
-			scaledBiasGrad.Scale(nn.LearningRate, layerError)
-			nn.Hidden[i].bias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
-
-		}	else {
-			// layerError = 後一層weight.T() * 後一層的error
-			// layerGrad (on L) = layerError (on L) * layerOutput.T() (on L-1)
-		 
-			var layerError *mat.Dense
+			// Use original output weights
+			layerError.Mul(origOutputWeight.T(), &outputError)
+		} else {
+			// Use original weights of layer i+1 (not yet updated because we haven't applied updates)
 			layerError.Mul(nn.Hidden[i+1].weight.T(), prevLayerError)
-			reluDeriv := reluDerivative(layerOutputs[i])
-			layerError, _ = hadamardProduct(layerError, reluDeriv)
-			prevLayerError = layerError
+		}
 
-			var layerGrad mat.Dense
-			layerGrad.Mul(layerError, layerOutputs[i-1].T())
+		reluDeriv := reluDerivative(layerOutputs[i+1])
+		layerErrorPtr, _ := hadamardProduct(&layerError, reluDeriv)
+		prevLayerError = layerErrorPtr
 
-			var scaledWeightGrad mat.Dense
-			scaledWeightGrad.Scale(nn.LearningRate, &layerGrad)
-			nn.Hidden[i].weight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
-
-			var scaledBiasGrad mat.Dense
-			scaledBiasGrad.Scale(nn.LearningRate, layerError)
-			nn.Hidden[i].bias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
-
-		} 
+		// Compute weight gradient for this layer
+		var layerGrad mat.Dense
+		layerGrad.Mul(layerErrorPtr, layerOutputs[i].T())
+		hiddenWeightGrads[i] = mat.DenseCopyOf(&layerGrad)
+		hiddenBiasGrads[i] = mat.DenseCopyOf(layerErrorPtr)
 	}
 
+	// Now apply all updates at once
+	// Update output layer
+	var scaledOutputWeightGrad mat.Dense
+	scaledOutputWeightGrad.Scale(nn.LearningRate, &outputWeightGrad)
+	r, c := nn.OutputWeight.Dims()
+	newOutputWeight := mat.NewDense(r, c, nil)
+	newOutputWeight.Sub(nn.OutputWeight, &scaledOutputWeightGrad)
+	nn.OutputWeight = newOutputWeight
+
+	var scaledOutputBiasGrad mat.Dense
+	scaledOutputBiasGrad.Scale(nn.LearningRate, &outputError)
+	rb, cb := nn.OutputBias.Dims()
+	newOutputBias := mat.NewDense(rb, cb, nil)
+	newOutputBias.Sub(nn.OutputBias, &scaledOutputBiasGrad)
+	nn.OutputBias = newOutputBias
+
+	// Update hidden layers
+	for i := 0; i < layercount; i++ {
+		var scaledWeightGrad mat.Dense
+		scaledWeightGrad.Scale(nn.LearningRate, hiddenWeightGrads[i])
+
+		wr, wc := nn.Hidden[i].weight.Dims()
+		updatedWeight := mat.NewDense(wr, wc, nil)
+		updatedWeight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
+		nn.Hidden[i].weight = updatedWeight
+
+		var scaledBiasGrad mat.Dense
+		scaledBiasGrad.Scale(nn.LearningRate, hiddenBiasGrads[i])
+
+		br, bc := nn.Hidden[i].bias.Dims()
+		updatedBias := mat.NewDense(br, bc, nil)
+		updatedBias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
+		nn.Hidden[i].bias = updatedBias
+	}
 }   
 
 
 func (nn *NeuralNetwork) train(input *mat.Dense, target *mat.Dense) (float64, error) {
-
 	//foward
 	logits, layerOutputs, _ := nn.forwardWithCache(input)
 
@@ -211,7 +220,7 @@ func LoadingDataFromCSV(filename string) ([]TrainingData, error){
 	return data, nil
 }
 
-func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData, testset[]TrainingData) error {
+func TrainingLoop(nn *NeuralNetwork, epoch int, trainingset []TrainingData, testset[]TrainingData) error {
 	// training loop
 
 	for i := 0; i < epoch; i++ {
@@ -232,7 +241,7 @@ func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData, tests
 		if err != nil {
 			return fmt.Errorf("Error During Validation")
 		}
-		fmt.Printf("Validation 【%d/%d】 | Accuracy on validation set on this epoch: %.2f", i+1, epoch, acc)
+		fmt.Printf("Validation 【%d/%d】 | Accuracy on validation set on this epoch: %.2f\n", i+1, epoch, acc)
 	}
 
 	return nil
@@ -257,7 +266,7 @@ func argmax(input *mat.Dense) (int, error) {
 }
 
 
-func validate(nn NeuralNetwork, testset []TrainingData) (float64, error) {
+func validate(nn *NeuralNetwork, testset []TrainingData) (float64, error) {
 
 	correct := 0
 	for _, sample := range testset {

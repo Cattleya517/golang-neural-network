@@ -61,7 +61,7 @@ func sliceToDense(data [][]float64) (*mat.Dense, error) {
 
 
 
-func SaveModel(nn NeuralNetwork, filepath string) error {
+func SaveModel(nn *NeuralNetwork, filepath string) error {
 
 	hiddenLayers := make([]SerializableLayer, len(nn.Hidden))
 	for i :=0; i<len(nn.Hidden); i++{
