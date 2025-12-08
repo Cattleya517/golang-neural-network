@@ -72,11 +72,11 @@ func hadamardProduct(matA, matB *mat.Dense) (*mat.Dense, error){
 	rA, cA := matA.Dims()
 	rB, cB := matB.Dims()
 	if rA != rB || cA != cB {
-		return mat.Dense{}, fmt.Errorf("Matrices of different shape can't perform hadamardProduct")
+		return nil, fmt.Errorf("Matrices of different shape can't perform hadamardProduct")
 	}
 	result := mat.NewDense(rA, cA, nil)
-	for i := 0; i < r; i++{
-		for j:=0; j < c; j++{
+	for i := 0; i < rA; i++{
+		for j:=0; j < cA; j++{
 			result.Set(i, j, matA.At(i, j) * matB.At(i, j)) 
 		}
 	}
@@ -114,7 +114,7 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 			layerError.Mul(nn.OutputWeight.T(), &outputError)
 			
 			reluDeriv := reluDerivative(layerOutputs[i])
-			layerError, _ = hadamardProduct(&layerError, reluDeriv)
+			layerError, _ = hadamardProduct(layerError, reluDeriv)
 			prevLayerError = layerError
 
 			var layerGrad mat.Dense
@@ -125,7 +125,7 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 			nn.Hidden[i].weight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
 
 			var scaledBiasGrad mat.Dense
-			scaledBiasGrad.Scale(nn.LearningRate, &layerError)
+			scaledBiasGrad.Scale(nn.LearningRate, layerError)
 			nn.Hidden[i].bias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
 
 		}	else {
@@ -135,7 +135,7 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 			var layerError *mat.Dense
 			layerError.Mul(nn.Hidden[i+1].weight.T(), prevLayerError)
 			reluDeriv := reluDerivative(layerOutputs[i])
-			layerError, _ = hadamardProduct(&layerError, reluDeriv)
+			layerError, _ = hadamardProduct(layerError, reluDeriv)
 			prevLayerError = layerError
 
 			var layerGrad mat.Dense
@@ -146,7 +146,7 @@ func (nn *NeuralNetwork) backPropagation(pred *mat.Dense, traget *mat.Dense, lay
 			nn.Hidden[i].weight.Sub(nn.Hidden[i].weight, &scaledWeightGrad)
 
 			var scaledBiasGrad mat.Dense
-			scaledBiasGrad.Scale(nn.LearningRate, &layerError)
+			scaledBiasGrad.Scale(nn.LearningRate, layerError)
 			nn.Hidden[i].bias.Sub(nn.Hidden[i].bias, &scaledBiasGrad)
 
 		} 
@@ -211,7 +211,7 @@ func LoadingDataFromCSV(filename string) ([]TrainingData, error){
 	return data, nil
 }
 
-func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData) error {
+func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData, testset[]TrainingData) error {
 	// training loop
 
 	for i := 0; i < epoch; i++ {
@@ -225,8 +225,61 @@ func trainingLoop(nn NeuralNetwork, epoch int, trainingset []TrainingData) error
 			lossSum += singleLoss
 		}
 		avgLoss := lossSum / float64(len(trainingset))
-		fmt.Printf("Epoch 【%d/%d】| Average training Loss on this epoch %.4f\n", i, epoch, avgLoss)
+		fmt.Printf("Epoch 【%d/%d】| Average training Loss on this epoch %.4f\n", i+1, epoch, avgLoss)
+	
+		// validation loop
+		acc, err := validate(nn, testset)
+		if err != nil {
+			return fmt.Errorf("Error During Validation")
+		}
+		fmt.Printf("Validation 【%d/%d】 | Accuracy on validation set on this epoch: %.2f", i+1, epoch, acc)
 	}
 
 	return nil
 }
+
+func argmax(input *mat.Dense) (int, error) {
+	r, c := input.Dims()
+	if r!=10 || c != 1 {
+		return 0, fmt.Errorf("Not a row vector, not avaliable in mnist task.")
+	}
+
+	maxValue := input.At(0, 0)
+	maxIdx := 0
+	for i:=0; i<r; i++{
+		value := input.At(i, 0)
+		if value > maxValue{
+			maxValue = value
+			maxIdx = i
+		}
+	}
+	return maxIdx, nil
+}
+
+
+func validate(nn NeuralNetwork, testset []TrainingData) (float64, error) {
+
+	correct := 0
+	for _, sample := range testset {
+		logit, err := nn.forward(sample.Input)
+		if err != nil{
+			return 0, fmt.Errorf("Error during Inference")
+		}
+		pred, err := argmax(softmax(logit))
+		if err != nil {
+			return 0, err
+		}
+
+		ans, err := argmax(sample.Target)
+		if err != nil {
+			return 0, err
+		}
+		if pred == ans{
+			correct++
+		}	
+
+	}
+	accuracy := float64(correct) / float64(len(testset)) 
+	return accuracy, nil
+}
+
