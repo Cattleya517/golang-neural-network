@@ -56,7 +56,7 @@ When training, you will be prompted to configure:
 - Learning rate
 - Number of epochs
 
-Recommended configuration for good accuracy (~96%), which is also the config in `basic` model:
+Recommended configuration for good accuracy (~96%), which is also the config in `models/basic.json` model:
 
 ```
 Hidden Layers: 2
