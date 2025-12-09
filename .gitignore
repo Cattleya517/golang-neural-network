@@ -2,4 +2,10 @@ mnist_data/train.csv
 mnist_data/test.csv
 
 .DS_Store
+
+# AI is used to format codes and documents 
 .claude
+
+# ignore all models except basic.json
+models/*
+!models/basic.json

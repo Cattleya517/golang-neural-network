@@ -171,7 +171,7 @@ func (nn *NeuralNetwork) train(input *mat.Dense, target *mat.Dense) (float64, er
 	logits, layerOutputs, _ := nn.forwardWithCache(input)
 
 	// softmax to decode preditction from pred matrix
-	pred := softmax(logits)
+	pred := Softmax(logits)
 
 	//record loss
 	loss, _ := crossEntropyLoss(pred, target)
@@ -248,7 +248,7 @@ func TrainingLoop(nn *NeuralNetwork, epoch int, trainingset []TrainingData, test
 	return nil
 }
 
-func argmax(input *mat.Dense) (int, error) {
+func Argmax(input *mat.Dense) (int, error) {
 	r, c := input.Dims()
 	if r!=10 || c != 1 {
 		return 0, fmt.Errorf("Not a row vector, not avaliable in mnist task.")
@@ -271,16 +271,16 @@ func validate(nn *NeuralNetwork, testset []TrainingData) (float64, error) {
 
 	correct := 0
 	for _, sample := range testset {
-		logit, err := nn.forward(sample.Input)
+		logit, err := nn.Forward(sample.Input)
 		if err != nil{
 			return 0, fmt.Errorf("Error during Inference")
 		}
-		pred, err := argmax(softmax(logit))
+		pred, err := Argmax(Softmax(logit))
 		if err != nil {
 			return 0, err
 		}
 
-		ans, err := argmax(sample.Target)
+		ans, err := Argmax(sample.Target)
 		if err != nil {
 			return 0, err
 		}

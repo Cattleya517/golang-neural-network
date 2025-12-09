@@ -78,14 +78,6 @@ func NewNeuralNetwork(inputs, outputClass int, hiddenNodes []int, learningRate f
 	return nn, nil
 }
 
-/*
-nn := NewNeuralNetwork(
-    10,              // 輸入 10 個特徵
-    3,               // 輸出 3 個類別
-    []int{64, 32},   // 兩個隱藏層：64 和 32 個節點
-    0.01,            // 學習率
-)
-*/
 
 func relu(m *mat.Dense) *mat.Dense{
 	r, c := m.Dims()
@@ -101,7 +93,7 @@ func relu(m *mat.Dense) *mat.Dense{
 }
 
 
-func (nn NeuralNetwork) forward(input *mat.Dense) (*mat.Dense, error) {
+func (nn NeuralNetwork) Forward(input *mat.Dense) (*mat.Dense, error) {
 	current := input
 	// process through hidden layer
 	for _, layer := range nn.Hidden {
@@ -124,7 +116,7 @@ func (nn NeuralNetwork) forward(input *mat.Dense) (*mat.Dense, error) {
 }
 
 
-func softmax(input *mat.Dense) *mat.Dense {
+func Softmax(input *mat.Dense) *mat.Dense {
 	max := input.At(0, 0)
 	r, c := input.Dims()
 	for i := 0; i < r; i++{

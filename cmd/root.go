@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"golang-neural-network/drawing"
 	"golang-neural-network/nn"
 	"os"
 	"path/filepath"
@@ -59,10 +60,11 @@ func showMainMenu() {
 		fmt.Println("\nTraining mode selected")
 		fmt.Println("Define your model structure")
 		trainingFlow()
+		loadModelFlow()
 		
 	case "2. Load trained model and test with your own hand written digit.":
 		fmt.Println("\nLoading model and GUI")
-		// TODO: 稍後會調用載入模型函數
+		loadModelFlow()
 		
 	case "3. Exit":
 		fmt.Println("\nBye！")
@@ -236,4 +238,55 @@ func trainingFlow(){
 	}
 	
 	fmt.Printf("Model saved successfully to %s\n", modelPath)
+}
+
+func loadModelFlow() {
+	// 檢查 models 目錄是否存在
+	modelsDir := "models"
+	if _, err := os.Stat(modelsDir); os.IsNotExist(err) {
+		fmt.Println("No models directory found. Please train a model first.")
+		return
+	}
+	
+	// 列出所有 .json 模型文件
+	files, err := filepath.Glob(filepath.Join(modelsDir, "*.json"))
+	if err != nil || len(files) == 0 {
+		fmt.Println("No trained models found. Please train a model first.")
+		return
+	}
+	
+	// 準備選項列表
+	modelOptions := make([]string, len(files))
+	for i, f := range files {
+		modelOptions[i] = filepath.Base(f)
+	}
+	
+	// 讓用戶選擇模型
+	var selectedModel string
+	prompt := &survey.Select{
+		Message: "Choose a trained model:",
+		Options: modelOptions,
+	}
+	
+	err = survey.AskOne(prompt, &selectedModel)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	
+	// 載入模型
+	modelPath := filepath.Join(modelsDir, selectedModel)
+	fmt.Printf("\nLoading model from %s...\n", modelPath)
+	
+	model, err := nn.LoadModel(modelPath)
+	if err != nil {
+		fmt.Printf("Error loading model: %v\n", err)
+		return
+	}
+	
+	fmt.Println("Model loaded successfully!")
+	fmt.Println("\nOpening drawing board...")
+	
+	// 打開繪圖板
+	drawing.ShowDrawingBoardWithModel(model)
 }
