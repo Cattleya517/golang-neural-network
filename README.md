@@ -4,7 +4,9 @@ A pure Go implementation of a neural network for handwritten digit recognition. 
 
 This project implements backpropagation, gradient descent, and all core neural network operations from scratch using only the `gonum` matrix library. It's designed for learning and experimentation with the MNIST dataset.
 
-![DEMO](demo/demo.gif)
+<p align="center">
+  <img src="demo/demo.gif" alt="DEMO" />
+</p>
 
 ## Features
 
